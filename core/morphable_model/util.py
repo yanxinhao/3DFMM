@@ -2,9 +2,10 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-04-23 10:33:01
+LastEditTime: 2021-04-24 16:11:55
 LastEditors: yanxinhao
 Description: 
+reference : https://github.com/HavenFeng/photometric_optimization/blob/master/util.py
 '''
 import numpy as np
 import torch
@@ -155,8 +156,11 @@ def tensor_vis_landmarks(images, landmarks, gt_landmarks=None, color='g', isScal
         image = images[i]
         image = image.transpose(1, 2, 0)[:, :, [2, 1, 0]].copy()
         image = (image * 255)
+        predicted_landmark = np.ones_like(predicted_landmarks[i])
         if isScale:
-            predicted_landmark = predicted_landmarks[i] * \
+            predicted_landmark[..., 0] = predicted_landmarks[i, :, 0] * \
+                image.shape[1] / 2 + image.shape[1] / 2
+            predicted_landmark[..., 1] = predicted_landmarks[i, :, 1] * \
                 image.shape[0] / 2 + image.shape[0] / 2
         else:
             predicted_landmark = predicted_landmarks[i]

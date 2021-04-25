@@ -139,7 +139,8 @@ class Renderer(nn.Module):
         '''
         batch_size = vertices.shape[0]
         # rasterizer near 0 far 100. move mesh so minz larger than 0
-        transformed_vertices[:, :, 2] = transformed_vertices[:, :, 2] + 10
+        _transformed_vertices = transformed_vertices.clone()
+        _transformed_vertices[:, :, 2] = _transformed_vertices[:, :, 2] + 10
 
         # Attributes
         face_vtxs = face_vertices(
@@ -149,7 +150,7 @@ class Renderer(nn.Module):
         face_normals = face_vertices(
             normals, self.faces.expand(batch_size, -1, -1))
         transformed_normals = vertex_normals(
-            transformed_vertices, self.faces.expand(batch_size, -1, -1))
+            _transformed_vertices, self.faces.expand(batch_size, -1, -1))
         transformed_face_normals = face_vertices(
             transformed_normals, self.faces.expand(batch_size, -1, -1))
 
@@ -158,7 +159,7 @@ class Renderer(nn.Module):
                                 face_vtxs.detach(), face_normals.detach()], -1)
         # import ipdb;ipdb.set_trace()
         rendering = self.rasterizer(
-            transformed_vertices, self.faces.expand(batch_size, -1, -1), attributes)
+            _transformed_vertices, self.faces.expand(batch_size, -1, -1), attributes)
 
         alpha_images = rendering[:, -1, :, :][:, None, :, :].detach()
 
@@ -279,7 +280,8 @@ class Renderer(nn.Module):
                 vertices.device)
 
         # rasterizer near 0 far 100. move mesh so minz larger than 0
-        transformed_vertices[:, :, 2] = transformed_vertices[:, :, 2] + 10
+        _transformed_vertices = transformed_vertices.clone()
+        _transformed_vertices[:, :, 2] = _transformed_vertices[:, :, 2] + 10
 
         # Attributes
         face_vtxs = face_vertices(
@@ -289,7 +291,7 @@ class Renderer(nn.Module):
         face_normals = face_vertices(
             normals, self.faces.expand(batch_size, -1, -1))
         transformed_normals = vertex_normals(
-            transformed_vertices, self.faces.expand(batch_size, -1, -1))
+            _transformed_vertices, self.faces.expand(batch_size, -1, -1))
         transformed_face_normals = face_vertices(
             transformed_normals, self.faces.expand(batch_size, -1, -1))
         # render
@@ -297,7 +299,7 @@ class Renderer(nn.Module):
             [self.face_colors.expand(batch_size, -1, -1, -1), transformed_face_normals.detach(), face_vtxs.detach(),
              face_normals.detach()], -1)
         rendering = self.rasterizer(
-            transformed_vertices, self.faces.expand(batch_size, -1, -1), attributes)
+            _transformed_vertices, self.faces.expand(batch_size, -1, -1), attributes)
         # albedo
         albedo_images = rendering[:, :3, :, :]
         # shading

@@ -1,8 +1,14 @@
-"""
-Author: Soubhik Sanyal
-Copyright (c) 2019, Soubhik Sanyal
-All rights reserved.
-"""
+# coding=utf-8
+'''
+Author: yanxinhao
+Email: 1914607611xh@i.shu.edu.cn
+LastEditTime: 2021-04-24 16:20:18
+LastEditors: yanxinhao
+Description: 
+reference : https://github.com/HavenFeng/photometric_optimization/blob/master/models/FLAME.py
+            https://github.com/HavenFeng/photometric_optimization/blob/master/photometric_fitting.py
+'''
+
 # Modified from smplx code for FLAME
 import cv2
 import datetime
@@ -140,7 +146,7 @@ class FLAME(nn.Module):
     def _setup_renderer(self, image_size):
         mesh_file = './Data/morphable_model/FLAME/head_template_mesh.obj'
         self.render = Renderer(
-            image_size, obj_filename=mesh_file).to(self.device)
+            (image_size[1], image_size[0]), obj_filename=mesh_file).to(self.device)
 
     def _find_dynamic_lmk_idx_and_bcoords(self, pose, dynamic_lmk_faces_idx,
                                           dynamic_lmk_b_coords,
@@ -409,7 +415,7 @@ class FLAME(nn.Module):
                 shape_images = self.render.render_shape(
                     vertices, trans_vertices, images)
                 grids['shape'] = torchvision.utils.make_grid(
-                    F.interpolate(shape_images[visind], self.image_size)).detach().float().cpu()
+                    F.interpolate(shape_images[visind], (self.image_size[1], self.image_size[0]))).detach().float().cpu()
 
                 # grids['tex'] = torchvision.utils.make_grid(F.interpolate(albedos[visind], [224, 224])).detach().cpu()
                 grid = torch.cat(list(grids.values()), 1)

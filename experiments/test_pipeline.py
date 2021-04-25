@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-04-24 11:46:44
+LastEditTime: 2021-04-24 15:37:00
 LastEditors: yanxinhao
 Description: test these modules in core folder
 '''
@@ -37,7 +37,7 @@ def main():
 
         'cropped_size': 256,
         'batch_size': 1,
-        'image_size': (512, 512),
+        'image_size': (456, 352),
         # 'image_size': (256, 256),
         'e_lr': 0.005,
         'e_wd': 0.0001,
@@ -52,13 +52,14 @@ def main():
     config_flame = dict2obj(config_flame)
     flame = MorphableModel(config=config_flame, model_type='FLAME')
 
-    image_path = "./Data/dave_dvp/train/f_0121.png"
+    # image_path = "./Data/dave_dvp/train/f_0121.png"
+    image_path = "./Data/download.jpeg"
     image = cv2.imread(image_path)
     image = cv2.resize(image, config_flame.image_size)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # params = flame.fitting_image(image)
-    # np.save("./Results/test_params.npy", params)
+    params = flame.fitting_image(image)
+    np.save("./Results/test_params.npy", params)
 
     params = np.load("./Results/test_params.npy", allow_pickle=True).item()
     flame.write_obj(params)
