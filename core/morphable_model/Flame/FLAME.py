@@ -2,15 +2,18 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-04-24 16:20:18
+LastEditTime: 2021-05-06 16:41:57
 LastEditors: yanxinhao
-Description: 
+Description:
 reference : https://github.com/HavenFeng/photometric_optimization/blob/master/models/FLAME.py
             https://github.com/HavenFeng/photometric_optimization/blob/master/photometric_fitting.py
 '''
 
 # Modified from smplx code for FLAME
+import os
+import json
 import cv2
+from tqdm import tqdm
 import datetime
 import torch
 import torch.nn as nn
@@ -18,7 +21,8 @@ import torchvision
 import numpy as np
 import pickle
 import torch.nn.functional as F
-from ..util import l2_distance, batch_orth_proj, tensor_vis_landmarks
+from ..util import l2_distance, batch_orth_proj, batch_persp_proj, tensor_vis_landmarks
+from ..camera import Camera
 from .lbs import lbs, batch_rodrigues, vertices2landmarks
 from renderer import Renderer
 
@@ -124,6 +128,9 @@ class FLAME(nn.Module):
             neck_kin_chain.append(curr_idx)
             curr_idx = self.parents[curr_idx]
         self.register_buffer('neck_kin_chain', torch.stack(neck_kin_chain))
+        # setup camera
+        self.setup_camera()
+
         # setup render
         self.image_size = image_size
         self._setup_renderer(image_size=image_size)
@@ -137,11 +144,58 @@ class FLAME(nn.Module):
             batch_size, self.config.expression_params).float().to(self.device))
         self.pose = nn.Parameter(torch.zeros(
             batch_size, self.config.pose_params).float().to(self.device))
-        cam = torch.zeros(batch_size, self.config.camera_params)
-        cam[:, 0] = 5.
-        self.cam = nn.Parameter(cam.float().to(self.device))
         self.lights = nn.Parameter(torch.zeros(
             batch_size, 9, 3).float().to(self.device))
+        if self.is_perspective:
+            self.cam_t = nn.Parameter(torch.tensor(
+                [0, 0, 1.]).repeat(batch_size, 1).float().to(self.device))
+        else:
+            self.cam_t = nn.Parameter(torch.zeros(
+                batch_size, 2).float().to(self.device))
+
+        self.params = {}
+        self.params['shape_params'] = self.shape
+        self.params['tex_params'] = self.tex
+        self.params['expression_params'] = self.exp
+        self.params['light_params'] = self.lights
+        self.params['pose_params'] = self.pose
+        self.params['cam_t'] = self.cam_t
+
+    def setup_camera(self, camera=None, camera_path=None, is_perspective=True):
+        if camera is not None:
+            self.cam = camera
+            self.is_perspective = camera.is_perspective
+            return
+
+        # setup camera
+        self.is_perspective = is_perspective
+        if self.is_perspective:
+            self.cam = Camera(camera_path=camera_path, is_perspective=is_perspective,
+                              principal_point=nn.Parameter(
+                                  torch.zeros(2).float().to(self.device)),
+                              focal_length=nn.Parameter(
+                                  5 * torch.ones(2).float().to(self.device))
+                              )
+            self.project_fun = batch_persp_proj
+        else:
+            self.cam = Camera(camera_path=camera_path,
+                              is_perspective=is_perspective,
+                              scale=nn.Parameter(
+                                  5.0 * torch.ones(1).float().to(self.device))
+                              )
+            self.project_fun = batch_orth_proj
+
+    def get_params(self):
+        return self.params
+
+    def get_camera(self):
+        return self.cam
+
+    def load_shape(self, shape_path):
+        with open(shape_path, 'r') as f:
+            shape = json.load(f)['shape']
+        self.shape = nn.Parameter(torch.tensor(
+            shape).unsqueeze(0).to(self.device))
 
     def _setup_renderer(self, image_size):
         mesh_file = './Data/morphable_model/FLAME/head_template_mesh.obj'
@@ -284,16 +338,19 @@ class FLAME(nn.Module):
         bz = landmarks.shape[0]
         if photometric:
             self.flametex = FLAMETex(self.config)
+        # setup camera
+        self.setup_camera(is_perspective=False)
         # initialize params and optimizer
         self.initialize_params(batch_size=bz)
         landmarks = torch.from_numpy(landmarks).to(self.device)
         e_opt = torch.optim.Adam(
-            [self.shape, self.exp, self.pose, self.cam, self.tex, self.lights],
+            [self.shape, self.exp, self.pose, self.tex, self.cam_t,
+                self.lights] + self.cam.get_params(),
             lr=self.config.e_lr,
             weight_decay=self.config.e_wd
         )
         e_opt_rigid = torch.optim.Adam(
-            [self.pose, self.cam],
+            [self.pose, self.cam_t] + self.cam.get_params(),
             lr=self.config.e_lr,
             weight_decay=self.config.e_wd
         )
@@ -305,11 +362,11 @@ class FLAME(nn.Module):
             losses = {}
             vertices, landmarks2d, landmarks3d = self.forward(
                 shape_params=self.shape, expression_params=self.exp, pose_params=self.pose)
-            trans_vertices = batch_orth_proj(vertices, self.cam)
+            trans_vertices = self.project_fun(vertices, self.cam, self.cam_t)
             trans_vertices[..., 1:] = - trans_vertices[..., 1:]
-            landmarks2d = batch_orth_proj(landmarks2d, self.cam)
+            landmarks2d = self.project_fun(landmarks2d, self.cam, self.cam_t)
             landmarks2d[..., 1:] = - landmarks2d[..., 1:]
-            landmarks3d = batch_orth_proj(landmarks3d, self.cam)
+            landmarks3d = self.project_fun(landmarks3d, self.cam, self.cam_t)
             landmarks3d[..., 1:] = - landmarks3d[..., 1:]
 
             losses['landmark'] = l2_distance(
@@ -342,6 +399,10 @@ class FLAME(nn.Module):
                     tensor_vis_landmarks(images[visind], landmarks2d[visind]))
                 grids['landmarks3d'] = torchvision.utils.make_grid(
                     tensor_vis_landmarks(images[visind], landmarks3d[visind]))
+                shape_images = self.render.render_shape(
+                    vertices, trans_vertices, images)
+                grids['shape'] = torchvision.utils.make_grid(
+                    F.interpolate(shape_images[visind], (self.image_size[1], self.image_size[0]))).detach().float().cpu()
 
                 grid = torch.cat(list(grids.values()), 1)
                 grid_image = (grid.numpy().transpose(
@@ -354,11 +415,11 @@ class FLAME(nn.Module):
             losses = {}
             vertices, landmarks2d, landmarks3d = self.forward(
                 shape_params=self.shape, expression_params=self.exp, pose_params=self.pose)
-            trans_vertices = batch_orth_proj(vertices, self.cam)
+            trans_vertices = self.project_fun(vertices, self.cam, self.cam_t)
             trans_vertices[..., 1:] = - trans_vertices[..., 1:]
-            landmarks2d = batch_orth_proj(landmarks2d, self.cam)
+            landmarks2d = self.project_fun(landmarks2d, self.cam, self.cam_t)
             landmarks2d[..., 1:] = - landmarks2d[..., 1:]
-            landmarks3d = batch_orth_proj(landmarks3d, self.cam)
+            landmarks3d = self.project_fun(landmarks3d, self.cam, self.cam_t)
             landmarks3d[..., 1:] = - landmarks3d[..., 1:]
 
             losses['landmark'] = l2_distance(
@@ -438,13 +499,213 @@ class FLAME(nn.Module):
         }
         return single_params
 
+    def camera_calib(self, dataloader, epochs=20, savefolder="./"):
+        print('----------------------camera calib-----------------------')
+        for i in range(epochs):
+            print(f"epoch {i}")
+            for batch_idx, data in enumerate(tqdm(dataloader)):
+                self.batch_idx = batch_idx
+                landmarks, indices, images = data
+                if images[0] is None:
+                    images = None
+                bz = landmarks.shape[0]
+                shape = self.shape[0].expand(bz, -1)
+                tex = self.tex[indices[0]:indices[-1] + 1]
+                expression = self.exp[indices[0]:indices[-1] + 1]
+                light = self.lights[indices[0]:indices[-1] + 1]
+                pose = self.pose[indices[0]:indices[-1] + 1]
+                t = self.cam_t[indices[0]:indices[-1] + 1]
+                self._fit_landmarks(landmarks, self.cam, shape, tex, expression, light,
+                                    pose, t, images=images, update_camera=True, update_shape=True)
+            print(self.cam)
+            self.cam.save(os.path.join(savefolder, "camera.json"))
+
+    def identity_fitting(self, dataloader, epochs=15, savefolder="./"):
+        print('--------------------identity fitting---------------------')
+        for i in range(epochs):
+            print(f"epoch {i}")
+            for batch_idx, data in enumerate(tqdm(dataloader)):
+                self.batch_idx = batch_idx
+                landmarks, indices, images = data
+                if images[0] is None:
+                    images = None
+                bz = landmarks.shape[0]
+                shape = self.shape[0].expand(bz, -1)
+                tex = self.tex[indices[0]:indices[-1] + 1]
+                expression = self.exp[indices[0]:indices[-1] + 1]
+                light = self.lights[indices[0]:indices[-1] + 1]
+                pose = self.pose[indices[0]:indices[-1] + 1]
+                t = self.cam_t[indices[0]:indices[-1] + 1]
+                self._fit_landmarks(landmarks, self.cam, shape, tex, expression, light,
+                                    pose, t, images=images, update_camera=False, update_shape=True)
+            # save shape parameters
+            results = {
+                "shape": self.shape[0].cpu().detach().numpy().tolist()
+            }
+            with open(os.path.join(savefolder, "identity.json"), "w") as f:
+                json.dump(results, f, indent=4)
+
+    def fit(self, dataloader, savefolder="./"):
+        print('--------------------fitting---------------------')
+        results = {}
+        for batch_idx, data in enumerate(tqdm(dataloader)):
+            self.batch_idx = batch_idx
+            images, landmarks, indices, image_names = data
+            if images[0] is None:
+                images = None
+            bz = landmarks.shape[0]
+            shape = self.shape[0].expand(bz, -1)
+            tex = self.tex[indices[0]:indices[-1] + 1]
+            expression = self.exp[indices[0]:indices[-1] + 1]
+            light = self.lights[indices[0]:indices[-1] + 1]
+            pose = self.pose[indices[0]:indices[-1] + 1]
+            t = self.cam_t[indices[0]:indices[-1] + 1]
+            self._fit_landmarks(landmarks, self.cam, shape, tex, expression, light,
+                                pose, t, images=images, update_camera=False, update_shape=False,
+                                rigid_iter=100, full_iter=200)
+            for idx, name in zip(indices, image_names):
+                results[name] = {
+                    "expression": self.exp[idx].cpu().detach().numpy().tolist(),
+                    "pose": self.pose[idx].cpu().detach().numpy().tolist(),
+                    "cam_t": self.cam_t[idx].cpu().detach().numpy().tolist(),
+                    "shape": self.shape[0].cpu().detach().numpy().tolist()
+                }
+            with open(os.path.join(savefolder, "data.json"), "w") as f:
+                json.dump(results, f, indent=4)
+
+    def _fit_landmarks(self, landmarks, camera,
+                       shape_params, tex_params, expression_params, light_params,
+                       pose_params, cam_t,
+                       photometric=False, update_camera=False, update_shape=True,
+                       images=None, log=True,
+                       rigid_iter=20, full_iter=50
+                       ):
+        bz = landmarks.shape[0]
+
+        shape_params = nn.Parameter(shape_params)
+        tex_params = nn.Parameter(tex_params)
+        expression_params = nn.Parameter(expression_params)
+        light_params = nn.Parameter(light_params)
+        pose_params = nn.Parameter(pose_params)
+        cam_t = nn.Parameter(cam_t)
+        # set the parameters that needs to be updated
+        opt_params = [tex_params, expression_params, light_params,
+                      pose_params, cam_t]
+        opt_rigid_params = [pose_params, cam_t]
+        if update_camera:
+            opt_params += camera.get_params()
+            opt_rigid_params += camera.get_params()
+        if update_shape:
+            opt_params += [shape_params]
+        # init optimizer
+        e_opt = torch.optim.Adam(
+            opt_params,
+            lr=self.config.e_lr,
+            weight_decay=self.config.e_wd
+        )
+        e_opt_rigid = torch.optim.Adam(
+            opt_rigid_params,
+            lr=self.config.e_lr,
+            weight_decay=self.config.e_wd
+        )
+        gt_landmark = landmarks
+        for k in range(rigid_iter):
+            losses = {}
+            vertices, landmarks2d, landmarks3d = self.forward(
+                shape_params=shape_params, expression_params=expression_params, pose_params=pose_params)
+            trans_vertices = self.project_fun(vertices, camera, cam_t)
+            trans_vertices[..., 1:] = - trans_vertices[..., 1:]
+            landmarks2d = self.project_fun(landmarks2d, camera, cam_t)
+            landmarks2d[..., 1:] = - landmarks2d[..., 1:]
+            landmarks3d = self.project_fun(landmarks3d, camera, cam_t)
+            landmarks3d[..., 1:] = - landmarks3d[..., 1:]
+
+            losses['landmark'] = l2_distance(
+                landmarks2d[:, 17:, :2], gt_landmark[:, 17:, :2]) * self.config.w_lmks
+
+            all_loss = 0.
+            for key in losses.keys():
+                all_loss = all_loss + losses[key]
+            losses['all_loss'] = all_loss
+            e_opt_rigid.zero_grad()
+            all_loss.backward()
+            e_opt_rigid.step()
+
+        for k in range(rigid_iter, full_iter):
+            losses = {}
+            vertices, landmarks2d, landmarks3d = self.forward(
+                shape_params=shape_params, expression_params=expression_params, pose_params=pose_params)
+            trans_vertices = self.project_fun(vertices, camera, cam_t)
+            trans_vertices[..., 1:] = - trans_vertices[..., 1:]
+            landmarks2d = self.project_fun(landmarks2d, camera, cam_t)
+            landmarks2d[..., 1:] = - landmarks2d[..., 1:]
+            landmarks3d = self.project_fun(landmarks3d, camera, cam_t)
+            landmarks3d[..., 1:] = - landmarks3d[..., 1:]
+
+            losses['landmark'] = l2_distance(
+                landmarks2d[:, :, :2], gt_landmark[:, :, :2]) * self.config.w_lmks
+            losses['shape_reg'] = (
+                torch.sum(self.shape ** 2) / 2) * self.config.w_shape_reg  # *1e-4
+            losses['expression_reg'] = (
+                torch.sum(self.exp ** 2) / 2) * self.config.w_expr_reg  # *1e-4
+            losses['pose_reg'] = (
+                torch.sum(self.pose ** 2) / 2) * self.config.w_pose_reg
+
+            # render
+            if photometric:
+                albedos = self.flametex(self.tex) / 255.
+                ops = self.render(vertices, trans_vertices,
+                                  albedos, self.lights)
+                predicted_images = ops['images']
+                # losses['photometric_texture'] = (
+                #     image_masks * (ops['images'] - images).abs()).mean() * self.config.w_pho
+
+            all_loss = 0.
+            for key in losses.keys():
+                all_loss = all_loss + losses[key]
+            losses['all_loss'] = all_loss
+            e_opt.zero_grad()
+            all_loss.backward()
+            e_opt.step()
+
+        # visualize
+        if log:
+            grids = {}
+            visind = range(bz)  # [0]
+            grids['images'] = torchvision.utils.make_grid(
+                images[visind]).detach().cpu()
+            grids['landmarks_gt'] = torchvision.utils.make_grid(
+                tensor_vis_landmarks(images[visind], landmarks[visind]))
+            grids['landmarks2d'] = torchvision.utils.make_grid(
+                tensor_vis_landmarks(images[visind], landmarks2d[visind]))
+            grids['landmarks3d'] = torchvision.utils.make_grid(
+                tensor_vis_landmarks(images[visind], landmarks3d[visind]))
+            # grids['albedoimage'] = torchvision.utils.make_grid(
+            #     (ops['albedo_images'])[visind].detach().cpu())
+            # grids['render'] = torchvision.utils.make_grid(
+            #     predicted_images[visind].detach().float().cpu())
+            shape_images = self.render.render_shape(
+                vertices, trans_vertices, images)
+            grids['shape'] = torchvision.utils.make_grid(
+                F.interpolate(shape_images[visind], (self.image_size[1], self.image_size[0]))).detach().float().cpu()
+
+            # grids['tex'] = torchvision.utils.make_grid(F.interpolate(albedos[visind], [224, 224])).detach().cpu()
+            grid = torch.cat(list(grids.values()), 1)
+            grid_image = (grid.numpy().transpose(
+                1, 2, 0).copy() * 255)[:, :, [2, 1, 0]]
+            grid_image = np.minimum(np.maximum(
+                grid_image, 0), 255).astype(np.uint8)
+
+            cv2.imwrite('{}/batch_{}.jpg'.format(self.config.savefolder,
+                        self.batch_idx), grid_image)
+
     def save_obj(self, params, save_path="./Results/test.obj"):
+        self.setup_camera(is_perspective=False)
         vertices, _, _ = self.forward(shape_params=torch.from_numpy(params['shape']).to(self.device),
                                       expression_params=torch.from_numpy(
-                                          params['exp']).to(self.device),
-                                      pose_params=torch.from_numpy(params['pose']).to(self.device))
-        trans_vertices = batch_orth_proj(
-            vertices, torch.from_numpy(params['cam']).to(self.device))
+            params['exp']).to(self.device),
+            pose_params=torch.from_numpy(params['pose']).to(self.device))
+        trans_vertices = self.project_fun(vertices, self.cam, self.cam_t)
         trans_vertices[..., 1:] = - trans_vertices[..., 1:]
 
         # save the vertices of first face
@@ -452,12 +713,12 @@ class FLAME(nn.Module):
         self.render.save_obj(filename=save_path, vertices=trans_vertices)
 
     def render_shape(self, params):
+        self.setup_camera(is_perspective=False)
         vertices, _, _ = self.forward(shape_params=torch.from_numpy(params['shape']).to(self.device),
                                       expression_params=torch.from_numpy(
-                                          params['exp']).to(self.device),
-                                      pose_params=torch.from_numpy(params['pose']).to(self.device))
-        trans_vertices = batch_orth_proj(
-            vertices, torch.from_numpy(params['cam']).to(self.device))
+            params['exp']).to(self.device),
+            pose_params=torch.from_numpy(params['pose']).to(self.device))
+        trans_vertices = self.project_fun(vertices, self.cam, self.cam_t)
         trans_vertices[..., 1:] = - trans_vertices[..., 1:]
         shape_images = self.render.render_shape(vertices, trans_vertices,)
         shape_images = (shape_images.cpu().numpy().transpose(

@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-04-24 16:11:55
+LastEditTime: 2021-05-05 18:17:14
 LastEditors: yanxinhao
 Description: 
 reference : https://github.com/HavenFeng/photometric_optimization/blob/master/util.py
@@ -81,68 +81,106 @@ def batch_rodrigues(theta):
     return quat2mat(quat)
 
 
-def batch_orth_proj(X, camera):
+# def batch_orth_proj(X, camera):
+#     '''
+#         X is N x num_points x 3
+#     '''
+#     camera = camera.clone().view(-1, 1, 3)
+#     X_trans = X[:, :, :2] + camera[:, :, 1:]
+#     X_trans = torch.cat([X_trans, X[:, :, 2:]], 2)
+#     shape = X_trans.shape
+#     # Xn = (camera[:, :, 0] * X_trans.view(shape[0], -1)).view(shape)
+#     Xn = (camera[:, :, 0:1] * X_trans)
+#     return Xn
+
+def batch_orth_proj(X, camera, t):
     '''
         X is N x num_points x 3
     '''
-    camera = camera.clone().view(-1, 1, 3)
-    X_trans = X[:, :, :2] + camera[:, :, 1:]
+    X_trans = X[:, :, :2] + t
     X_trans = torch.cat([X_trans, X[:, :, 2:]], 2)
-    shape = X_trans.shape
+    # shape = X_trans.shape
     # Xn = (camera[:, :, 0] * X_trans.view(shape[0], -1)).view(shape)
-    Xn = (camera[:, :, 0:1] * X_trans)
+    Xn = (camera.scale * X_trans)
     return Xn
 
 
-def batch_persp_proj(vertices, cam, f, t, orig_size=256, eps=1e-9):
+def batch_persp_proj(vertices, cam, t, eps=1e-9):
     '''
-    Calculate projective transformation of vertices given a projection matrix
+    Calculate projective transformation of vertices given a camera and it's translation
     Input parameters:
-    f: torch tensor of focal length
+    cam:
     t: batch_size * 1 * 3 xyz translation in world coordinate
-    K: batch_size * 3 * 3 intrinsic camera matrix
-    R, t: batch_size * 3 * 3, batch_size * 1 * 3 extrinsic calibration parameters
-    dist_coeffs: vector of distortion coefficients
-    orig_size: original size of image captured by the camera
-    Returns: For each point [X,Y,Z] in world coordinates [u,v,z] where u,v are the coordinates of the projection in
-    pixels and z is the depth
+    t: batch_size * 1 * 3 extrinsic calibration parameters
+    Returns: For each point [X,Y,Z] in world coordinates [x,y,z] where u,v are the coordinates of the projection in
+    NDC and z is the depth
     '''
-    device = vertices.device
-
-    K = torch.tensor([f, 0., cam['c'][0], 0., f, cam['c'][1], 0., 0., 1.]).view(3, 3)[None, ...].repeat(
-        vertices.shape[0], 1).to(device)
-    R = batch_rodrigues(cam['r'][None, ...].repeat(
-        vertices.shape[0], 1)).to(device)
-    dist_coeffs = cam['k'][None, ...].repeat(vertices.shape[0], 1).to(device)
-
-    vertices = torch.matmul(vertices, R.transpose(2, 1)) + t
+    # log depth
+    z_w = vertices[..., 2].clone()
+    # inverse z axis
+    vertices[..., 2] = -vertices[..., 2]
+    t = t.unsqueeze(1)
+    vertices = vertices + t
     x, y, z = vertices[:, :, 0], vertices[:, :, 1], vertices[:, :, 2]
     x_ = x / (z + eps)
     y_ = y / (z + eps)
 
-    # Get distortion coefficients from vector
-    k1 = dist_coeffs[:, None, 0]
-    k2 = dist_coeffs[:, None, 1]
-    p1 = dist_coeffs[:, None, 2]
-    p2 = dist_coeffs[:, None, 3]
-    k3 = dist_coeffs[:, None, 4]
-
-    # we use x_ for x' and x__ for x'' etc.
-    r = torch.sqrt(x_ ** 2 + y_ ** 2)
-    x__ = x_ * (1 + k1 * (r ** 2) + k2 * (r ** 4) + k3 * (r ** 6)
-                ) + 2 * p1 * x_ * y_ + p2 * (r ** 2 + 2 * x_ ** 2)
-    y__ = y_ * (1 + k1 * (r ** 2) + k2 * (r ** 4) + k3 * (r ** 6)
-                ) + p1 * (r ** 2 + 2 * y_ ** 2) + 2 * p2 * x_ * y_
-    vertices = torch.stack([x__, y__, torch.ones_like(z)], dim=-1)
-    vertices = torch.matmul(vertices, K.transpose(1, 2))
-    u, v = vertices[:, :, 0], vertices[:, :, 1]
-    v = orig_size - v
-    # map u,v from [0, img_size] to [-1, 1] to be compatible with the renderer
-    u = 2 * (u - orig_size / 2.) / orig_size
-    v = 2 * (v - orig_size / 2.) / orig_size
-    vertices = torch.stack([u, v, z], dim=-1)
-
+    vertices = torch.stack([x_, y_], dim=-1)
+    x_n, y_n = vertices[:, :, 0] * cam.focal_length[0] + \
+        cam.principal_point[0], vertices[:, :, 1] * \
+        cam.focal_length[1] + cam.principal_point[1]
+    vertices = torch.stack([x_n, y_n, z_w], dim=-1)
     return vertices
+
+# def batch_persp_proj(vertices, cam, f, t, orig_size=256, eps=1e-9):
+#     '''
+#     Calculate projective transformation of vertices given a projection matrix
+#     Input parameters:
+#     f: torch tensor of focal length
+#     t: batch_size * 1 * 3 xyz translation in world coordinate
+#     K: batch_size * 3 * 3 intrinsic camera matrix
+#     R, t: batch_size * 3 * 3, batch_size * 1 * 3 extrinsic calibration parameters
+#     dist_coeffs: vector of distortion coefficients
+#     orig_size: original size of image captured by the camera
+#     Returns: For each point [X,Y,Z] in world coordinates [u,v,z] where u,v are the coordinates of the projection in
+#     pixels and z is the depth
+#     '''
+#     device = vertices.device
+
+#     K = torch.tensor([f, 0., cam['c'][0], 0., f, cam['c'][1], 0., 0., 1.]).view(3, 3)[None, ...].repeat(
+#         vertices.shape[0], 1).to(device)
+#     R = batch_rodrigues(cam['r'][None, ...].repeat(
+#         vertices.shape[0], 1)).to(device)
+#     dist_coeffs = cam['k'][None, ...].repeat(vertices.shape[0], 1).to(device)
+
+#     vertices = torch.matmul(vertices, R.transpose(2, 1)) + t
+#     x, y, z = vertices[:, :, 0], vertices[:, :, 1], vertices[:, :, 2]
+#     x_ = x / (z + eps)
+#     y_ = y / (z + eps)
+
+#     # Get distortion coefficients from vector
+#     k1 = dist_coeffs[:, None, 0]
+#     k2 = dist_coeffs[:, None, 1]
+#     p1 = dist_coeffs[:, None, 2]
+#     p2 = dist_coeffs[:, None, 3]
+#     k3 = dist_coeffs[:, None, 4]
+
+#     # we use x_ for x' and x__ for x'' etc.
+#     r = torch.sqrt(x_ ** 2 + y_ ** 2)
+#     x__ = x_ * (1 + k1 * (r ** 2) + k2 * (r ** 4) + k3 * (r ** 6)
+#                 ) + 2 * p1 * x_ * y_ + p2 * (r ** 2 + 2 * x_ ** 2)
+#     y__ = y_ * (1 + k1 * (r ** 2) + k2 * (r ** 4) + k3 * (r ** 6)
+#                 ) + p1 * (r ** 2 + 2 * y_ ** 2) + 2 * p2 * x_ * y_
+#     vertices = torch.stack([x__, y__, torch.ones_like(z)], dim=-1)
+#     vertices = torch.matmul(vertices, K.transpose(1, 2))
+#     u, v = vertices[:, :, 0], vertices[:, :, 1]
+#     v = orig_size - v
+#     # map u,v from [0, img_size] to [-1, 1] to be compatible with the renderer
+#     u = 2 * (u - orig_size / 2.) / orig_size
+#     v = 2 * (v - orig_size / 2.) / orig_size
+#     vertices = torch.stack([u, v, z], dim=-1)
+
+#     return vertices
 
 
 def tensor_vis_landmarks(images, landmarks, gt_landmarks=None, color='g', isScale=True):

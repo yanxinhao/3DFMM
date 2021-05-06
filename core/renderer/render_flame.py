@@ -307,7 +307,7 @@ class Renderer(nn.Module):
         if lights.shape[1] == 9:
             shading_images = self.add_SHlight(normal_images, lights)
         else:
-            print('directional')
+            # print('directional')
             shading = self.add_directionlight(normal_images.permute(
                 0, 2, 3, 1).reshape([batch_size, -1, 3]), lights)
 
