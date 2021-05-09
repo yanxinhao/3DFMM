@@ -2,12 +2,13 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-06 16:27:54
+LastEditTime: 2021-05-08 12:42:57
 LastEditors: yanxinhao
 Description: A basic class of 3DMM
 '''
 import os
 import cv2
+import json
 # from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -166,26 +167,11 @@ class MorphableModel(object):
         self.model.identity_fitting(
             dataloader, savefolder=self.config.savefolder)
 
-    def fit_dir(self, shape_path, camera_path, dir_path, sort_fun=lambda name: int(name[2:6])):
+    def fit_dir(self, shape_path, camera_path, dir_path, start_index=0, chunk=512, sort_fun=lambda name: int(name[2:6])):
         check_mkdir(self.config.savefolder)
         # step 1: get images and image_names
-        images = []
         image_names = os.listdir(dir_path)
         image_names.sort(key=sort_fun)
-        # load all images
-        for i, image_name in enumerate(image_names):
-            image_path = os.path.join(dir_path, image_name)
-            image = cv2.imread(image_path)
-            image = cv2.resize(image, self.config.image_size)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            images.append(image)
-        images = torch.from_numpy(
-            np.array(images).transpose(0, 3, 1, 2)).to(self.device)
-        # step 2: load shape and cameras; init parameters of 3DMM
-        bz = images.shape[0]
-        self.model.initialize_params(batch_size=bz)
-        self.model.load_shape(shape_path)
-        self.model.setup_camera(camera_path=camera_path)
 
         class Data(Dataset):
             def __init__(self, images, image_names, detector, device):
@@ -213,7 +199,29 @@ class MorphableModel(object):
                 landmarks[:, 1] = landmarks[:, 1] / \
                     float(h) * 2 - 1
                 image = image / 255.0
-                return image, landmarks, index, image_names[index]
-        dataset = Data(images, image_names, self.fa, device=self.device)
-        dataloader = DataLoader(dataset, batch_size=1)
-        self.model.fit(dataloader, savefolder=self.config.savefolder)
+                return image, landmarks, index, self.image_names[index]
+
+        data = {}
+        # load all images,minibatches to avoid OOM.
+        for i in range(start_index, len(image_names), chunk):
+            images = []
+            names = image_names[i:i + chunk]
+            for image_name in names:
+                image_path = os.path.join(dir_path, image_name)
+                image = cv2.imread(image_path)
+                image = cv2.resize(image, self.config.image_size)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                images.append(image)
+            images = torch.from_numpy(
+                np.array(images).transpose(0, 3, 1, 2)).to(self.device)
+            # step 2: load shape and cameras; init parameters of 3DMM
+            bz = images.shape[0]
+            self.model.initialize_params(batch_size=bz)
+            self.model.load_shape(shape_path)
+            self.model.setup_camera(camera_path=camera_path)
+            dataset = Data(images, names, self.fa, device=self.device)
+            dataloader = DataLoader(dataset, batch_size=1)
+            results = self.model.fit(dataloader)
+            data.update(results)
+            with open(os.path.join(self.config.savefolder, "data.json"), "w") as file:
+                json.dump(data, file, indent=4)

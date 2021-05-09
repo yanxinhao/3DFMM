@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-06 16:47:59
+LastEditTime: 2021-05-08 11:20:38
 LastEditors: yanxinhao
 Description: 
 '''
@@ -37,7 +37,7 @@ def main():
         'e_lr': 0.005,
         'e_wd': 0.0001,
         'imagefolder': './Data/dave_dvp/test',
-        'savefolder': './Results/dave_dvp/test',
+        'savefolder': './Results/dave_dvp/test/',
         # weights of losses and reg terms
         'w_pho': 8,
         'w_lmks': 1,

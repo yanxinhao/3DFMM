@@ -1,5 +1,8 @@
 Data/
-Results/
+*.obj
+*.png
+*.jpg
+# Results/
 .vscode/
-dave_dvp/
+# dave_dvp/
 __pycache__/

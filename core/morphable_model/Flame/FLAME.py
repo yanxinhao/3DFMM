@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-06 16:41:57
+LastEditTime: 2021-05-08 12:36:00
 LastEditors: yanxinhao
 Description:
 reference : https://github.com/HavenFeng/photometric_optimization/blob/master/models/FLAME.py
@@ -545,7 +545,7 @@ class FLAME(nn.Module):
             with open(os.path.join(savefolder, "identity.json"), "w") as f:
                 json.dump(results, f, indent=4)
 
-    def fit(self, dataloader, savefolder="./"):
+    def fit(self, dataloader):
         print('--------------------fitting---------------------')
         results = {}
         for batch_idx, data in enumerate(tqdm(dataloader)):
@@ -570,8 +570,8 @@ class FLAME(nn.Module):
                     "cam_t": self.cam_t[idx].cpu().detach().numpy().tolist(),
                     "shape": self.shape[0].cpu().detach().numpy().tolist()
                 }
-            with open(os.path.join(savefolder, "data.json"), "w") as f:
-                json.dump(results, f, indent=4)
+        return results
+        
 
     def _fit_landmarks(self, landmarks, camera,
                        shape_params, tex_params, expression_params, light_params,
