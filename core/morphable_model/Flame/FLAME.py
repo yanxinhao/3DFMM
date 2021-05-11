@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-08 12:36:00
+LastEditTime: 2021-05-10 08:51:25
 LastEditors: yanxinhao
 Description:
 reference : https://github.com/HavenFeng/photometric_optimization/blob/master/models/FLAME.py
@@ -148,7 +148,7 @@ class FLAME(nn.Module):
             batch_size, 9, 3).float().to(self.device))
         if self.is_perspective:
             self.cam_t = nn.Parameter(torch.tensor(
-                [0, 0, 1.]).repeat(batch_size, 1).float().to(self.device))
+                [0, 0, -1.]).repeat(batch_size, 1).float().to(self.device))
         else:
             self.cam_t = nn.Parameter(torch.zeros(
                 batch_size, 2).float().to(self.device))
@@ -499,7 +499,7 @@ class FLAME(nn.Module):
         }
         return single_params
 
-    def camera_calib(self, dataloader, epochs=20, savefolder="./"):
+    def camera_calib(self, dataloader, epochs=50, savefolder="./"):
         print('----------------------camera calib-----------------------')
         for i in range(epochs):
             print(f"epoch {i}")
@@ -571,7 +571,6 @@ class FLAME(nn.Module):
                     "shape": self.shape[0].cpu().detach().numpy().tolist()
                 }
         return results
-        
 
     def _fit_landmarks(self, landmarks, camera,
                        shape_params, tex_params, expression_params, light_params,
@@ -614,11 +613,8 @@ class FLAME(nn.Module):
             vertices, landmarks2d, landmarks3d = self.forward(
                 shape_params=shape_params, expression_params=expression_params, pose_params=pose_params)
             trans_vertices = self.project_fun(vertices, camera, cam_t)
-            trans_vertices[..., 1:] = - trans_vertices[..., 1:]
             landmarks2d = self.project_fun(landmarks2d, camera, cam_t)
-            landmarks2d[..., 1:] = - landmarks2d[..., 1:]
             landmarks3d = self.project_fun(landmarks3d, camera, cam_t)
-            landmarks3d[..., 1:] = - landmarks3d[..., 1:]
 
             losses['landmark'] = l2_distance(
                 landmarks2d[:, 17:, :2], gt_landmark[:, 17:, :2]) * self.config.w_lmks
@@ -636,11 +632,8 @@ class FLAME(nn.Module):
             vertices, landmarks2d, landmarks3d = self.forward(
                 shape_params=shape_params, expression_params=expression_params, pose_params=pose_params)
             trans_vertices = self.project_fun(vertices, camera, cam_t)
-            trans_vertices[..., 1:] = - trans_vertices[..., 1:]
             landmarks2d = self.project_fun(landmarks2d, camera, cam_t)
-            landmarks2d[..., 1:] = - landmarks2d[..., 1:]
             landmarks3d = self.project_fun(landmarks3d, camera, cam_t)
-            landmarks3d[..., 1:] = - landmarks3d[..., 1:]
 
             losses['landmark'] = l2_distance(
                 landmarks2d[:, :, :2], gt_landmark[:, :, :2]) * self.config.w_lmks

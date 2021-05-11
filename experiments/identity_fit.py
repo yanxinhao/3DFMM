@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-06 16:35:07
+LastEditTime: 2021-05-10 14:00:39
 LastEditors: yanxinhao
 Description: 
 '''
@@ -29,10 +29,10 @@ def main():
         'tex_params': 50,
         'use_face_contour': True,
 
-        'cropped_size': 256,
+        'cropped_size': 512,
         'batch_size': 1,
         # 'image_size': (456, 352),
-        'image_size': (256, 256),
+        'image_size': (512, 512),
         'e_lr': 0.005,
         'e_wd': 0.0001,
         'savefolder': './Results/dave_dvp',
@@ -53,7 +53,7 @@ def main():
     image_names = os.listdir(image_dir)
     image_names.sort(key=lambda name: int(name[2:6]))
     for i, image_name in enumerate(image_names):
-        if i == 10:
+        if i == 50:
             break
         image_path = image_dir + image_name
         image = cv2.imread(image_path)

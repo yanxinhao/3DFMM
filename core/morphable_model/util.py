@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-05 18:17:14
+LastEditTime: 2021-05-10 10:28:50
 LastEditors: yanxinhao
 Description: 
 reference : https://github.com/HavenFeng/photometric_optimization/blob/master/util.py
@@ -102,6 +102,7 @@ def batch_orth_proj(X, camera, t):
     # shape = X_trans.shape
     # Xn = (camera[:, :, 0] * X_trans.view(shape[0], -1)).view(shape)
     Xn = (camera.scale * X_trans)
+    Xn[..., 1:] = -Xn[..., 1:]
     return Xn
 
 
@@ -115,13 +116,10 @@ def batch_persp_proj(vertices, cam, t, eps=1e-9):
     Returns: For each point [X,Y,Z] in world coordinates [x,y,z] where u,v are the coordinates of the projection in
     NDC and z is the depth
     '''
-    # log depth
-    z_w = vertices[..., 2].clone()
-    # inverse z axis
-    vertices[..., 2] = -vertices[..., 2]
     t = t.unsqueeze(1)
     vertices = vertices + t
-    x, y, z = vertices[:, :, 0], vertices[:, :, 1], vertices[:, :, 2]
+    # camera looks at -z direction
+    x, y, z = vertices[:, :, 0], vertices[:, :, 1], -vertices[:, :, 2]
     x_ = x / (z + eps)
     y_ = y / (z + eps)
 
@@ -129,7 +127,7 @@ def batch_persp_proj(vertices, cam, t, eps=1e-9):
     x_n, y_n = vertices[:, :, 0] * cam.focal_length[0] + \
         cam.principal_point[0], vertices[:, :, 1] * \
         cam.focal_length[1] + cam.principal_point[1]
-    vertices = torch.stack([x_n, y_n, z_w], dim=-1)
+    vertices = torch.stack([x_n, -y_n, z], dim=-1)
     return vertices
 
 # def batch_persp_proj(vertices, cam, f, t, orig_size=256, eps=1e-9):

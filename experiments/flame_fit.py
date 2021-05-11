@@ -2,11 +2,12 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-08 11:20:38
+LastEditTime: 2021-05-10 14:21:41
 LastEditors: yanxinhao
 Description: 
 '''
 import os
+import argparse
 import cv2
 import sys
 import numpy as np
@@ -14,7 +15,7 @@ sys.path.append('./core')
 from morphable_model import MorphableModel, dict2obj
 
 
-def main():
+def main(args):
     config_flame = {
         # FLAME
         # acquire it from FLAME project page
@@ -30,14 +31,14 @@ def main():
         'tex_params': 50,
         'use_face_contour': True,
 
-        # 'cropped_size': 256,
+        # 'cropped_size': 512,
         'batch_size': 1,
         # 'image_size': (456, 352),
-        'image_size': (256, 256),
+        'image_size': (512, 512),
         'e_lr': 0.005,
         'e_wd': 0.0001,
-        'imagefolder': './Data/dave_dvp/test',
-        'savefolder': './Results/dave_dvp/test/',
+        'imagefolder': args.input_folder,
+        'savefolder': args.out_folder,
         # weights of losses and reg terms
         'w_pho': 8,
         'w_lmks': 1,
@@ -49,9 +50,26 @@ def main():
     w, h = config_flame.image_size
     flame = MorphableModel(config=config_flame, model_type='FLAME')
 
-    flame.fit_dir(config_flame.shape_path,
-                  config_flame.camera_path, config_flame.imagefolder)
+    flame.fit_dir(config_flame.shape_path, config_flame.camera_path,
+                  config_flame.imagefolder, start_index=0)
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(
+        description='The training process of deep video portrait')
+    parser.add_argument('-i', '--input_folder', type=str,
+                        default='./Data/dave_dvp/train')
+    parser.add_argument('-o', '--out_folder', type=str,
+                        default='./Results/dave_dvp/train/')
+    # parser.add_argument('-mf', '--model_folder',
+    #                     type=str, default='./data/models/')
+    # parser.add_argument('-mn', '--model_name', type=str,
+    #                     default='Tom')
+    # parser.add_argument('-r', '--resolution', type=int,
+    #                     default=256)
+    # parser.add_argument('-se', '--start_epoch', type=int,
+    #                     default=490)
+    # parser.add_argument('--cuda', action="store_true",
+    #                     default=True)
+    args = parser.parse_args()
+    main(args)

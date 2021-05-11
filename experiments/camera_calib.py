@@ -2,7 +2,7 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-06 09:02:41
+LastEditTime: 2021-05-10 14:01:22
 LastEditors: yanxinhao
 Description: 
 '''
@@ -29,10 +29,10 @@ def main():
         'tex_params': 50,
         'use_face_contour': True,
 
-        'cropped_size': 256,
+        'cropped_size': 512,
         'batch_size': 1,
         # 'image_size': (456, 352),
-        'image_size': (256, 256),
+        'image_size': (512, 512),
         'e_lr': 0.005,
         'e_wd': 0.0001,
         'savefolder': './Results/dave_dvp',
@@ -46,6 +46,7 @@ def main():
     }
     config_flame = dict2obj(config_flame)
     w, h = config_flame.image_size
+    print("loading flame model")
     flame = MorphableModel(config=config_flame, model_type='FLAME')
 
     # image_path = "./Data/dave_dvp/train/f_0121.png"
@@ -54,7 +55,7 @@ def main():
     image_names = os.listdir(image_dir)
     image_names.sort(key=lambda name: int(name[2:6]))
     for i, image_name in enumerate(image_names):
-        if i == 10:
+        if i == 50:
             break
         image_path = image_dir + image_name
         image = cv2.imread(image_path)
@@ -62,7 +63,7 @@ def main():
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         images.append(image)
     images = np.array(images)
-    flame.camera_calib(images=images)
+    flame.camera_calib(images=images, is_perspective=True)
 
 
 if __name__ == '__main__':

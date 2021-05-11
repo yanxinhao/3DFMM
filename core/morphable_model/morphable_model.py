@@ -2,11 +2,12 @@
 '''
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-08 12:42:57
+LastEditTime: 2021-05-10 14:32:09
 LastEditors: yanxinhao
 Description: A basic class of 3DMM
 '''
 import os
+import math
 import cv2
 import json
 # from tqdm import tqdm
@@ -200,12 +201,18 @@ class MorphableModel(object):
                     float(h) * 2 - 1
                 image = image / 255.0
                 return image, landmarks, index, self.image_names[index]
-
-        data = {}
+        if start_index != 0:
+            with open(os.path.join(self.config.savefolder, "data.json"), "r") as file:
+                data = json.load(file)
+        else:
+            data = {}
+        chuck_nums = math.ceil(len(image_names) / chunk)
         # load all images,minibatches to avoid OOM.
         for i in range(start_index, len(image_names), chunk):
             images = []
             names = image_names[i:i + chunk]
+            print(
+                f'------------fit_dir :total chuck nums:{chuck_nums}, processing No. {i+1}--------------')
             for image_name in names:
                 image_path = os.path.join(dir_path, image_name)
                 image = cv2.imread(image_path)
