@@ -1,6 +1,6 @@
 Data/
 *.obj
-*.png
+# *.png
 *.jpg
 # Results/
 .vscode/
