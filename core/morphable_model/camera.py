@@ -1,11 +1,13 @@
 # coding=utf-8
-'''
+"""
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-06 16:30:57
+LastEditTime: 2021-06-02 02:45:20
 LastEditors: yanxinhao
-Description:
-'''
+Description: 
+Date: 2021-06-02 02:45:19
+FilePath: /3DFMM/core/morphable_model/camera.py
+"""
 import torch
 import json
 
@@ -18,10 +20,10 @@ class Camera(object):
         else:
             self.is_perspective = is_perspective
             if is_perspective:
-                self.focal_length = kwargs.get('focal_length', None)
-                self.principal_point = kwargs.get('principal_point', None)
+                self.focal_length = kwargs.get("focal_length", None)
+                self.principal_point = kwargs.get("principal_point", None)
             else:
-                self.scale = kwargs.get('scale', None)
+                self.scale = kwargs.get("scale", None)
 
     def get_params(self):
         if self.is_perspective:
@@ -36,21 +38,19 @@ class Camera(object):
             return f"ortho camera : \n scale is {self.scale}"
 
     def save(self, save_path):
-        data = {
-            "is_perspective": self.is_perspective
-        }
+        data = {"is_perspective": self.is_perspective}
         if self.is_perspective:
-            data["focal_length"] = self.focal_length.cpu(
-            ).detach().numpy().tolist()
-            data["principal_point"] = self.principal_point.cpu(
-            ).detach().numpy().tolist()
+            data["focal_length"] = self.focal_length.cpu().detach().numpy().tolist()
+            data["principal_point"] = (
+                self.principal_point.cpu().detach().numpy().tolist()
+            )
         else:
             data["scale"] = self.scale.cpu().detach().numpy().tolist()
-        with open(save_path, 'w') as f:
+        with open(save_path, "w") as f:
             json.dump(data, f, indent=4)
 
     def load(self, file_path):
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             camera = json.load(f)
         self.is_perspective = camera["is_perspective"]
         if self.is_perspective:

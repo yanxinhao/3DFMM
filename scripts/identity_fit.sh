@@ -1,10 +1,11 @@
 ###
  # @Author: yanxinhao
  # @Email: 1914607611xh@i.shu.edu.cn
- # @LastEditTime: 2021-05-10 14:15:07
+ # @LastEditTime: 2021-06-02 07:35:37
  # @LastEditors: yanxinhao
  # @Description: 
 ### 
-conda init
-conda activate pytorch3d
+cd ..
+source activate pytorch3d
 python experiments/identity_fit.py
+cd scripts

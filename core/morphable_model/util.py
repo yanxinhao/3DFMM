@@ -1,12 +1,12 @@
 # coding=utf-8
-'''
+"""
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
 LastEditTime: 2021-05-10 10:28:50
 LastEditors: yanxinhao
 Description: 
 reference : https://github.com/HavenFeng/photometric_optimization/blob/master/util.py
-'''
+"""
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -35,7 +35,7 @@ def dict2obj(d):
 
 def check_mkdir(path):
     if not os.path.exists(path):
-        print('making %s' % path)
+        print("making %s" % path)
         os.makedirs(path)
 
 
@@ -52,8 +52,7 @@ def quat2mat(quat):
     """
     norm_quat = quat
     norm_quat = norm_quat / norm_quat.norm(p=2, dim=1, keepdim=True)
-    w, x, y, z = norm_quat[:, 0], norm_quat[:,
-                                            1], norm_quat[:, 2], norm_quat[:, 3]
+    w, x, y, z = norm_quat[:, 0], norm_quat[:, 1], norm_quat[:, 2], norm_quat[:, 3]
 
     B = quat.size(0)
 
@@ -61,9 +60,20 @@ def quat2mat(quat):
     wx, wy, wz = w * x, w * y, w * z
     xy, xz, yz = x * y, x * z, y * z
 
-    rotMat = torch.stack([w2 + x2 - y2 - z2, 2 * xy - 2 * wz, 2 * wy + 2 * xz,
-                          2 * wz + 2 * xy, w2 - x2 + y2 - z2, 2 * yz - 2 * wx,
-                          2 * xz - 2 * wy, 2 * wx + 2 * yz, w2 - x2 - y2 + z2], dim=1).view(B, 3, 3)
+    rotMat = torch.stack(
+        [
+            w2 + x2 - y2 - z2,
+            2 * xy - 2 * wz,
+            2 * wy + 2 * xz,
+            2 * wz + 2 * xy,
+            w2 - x2 + y2 - z2,
+            2 * yz - 2 * wx,
+            2 * xz - 2 * wy,
+            2 * wx + 2 * yz,
+            w2 - x2 - y2 + z2,
+        ],
+        dim=1,
+    ).view(B, 3, 3)
     return rotMat
 
 
@@ -93,21 +103,22 @@ def batch_rodrigues(theta):
 #     Xn = (camera[:, :, 0:1] * X_trans)
 #     return Xn
 
+
 def batch_orth_proj(X, camera, t):
-    '''
-        X is N x num_points x 3
-    '''
+    """
+    X is N x num_points x 3
+    """
     X_trans = X[:, :, :2] + t
     X_trans = torch.cat([X_trans, X[:, :, 2:]], 2)
     # shape = X_trans.shape
     # Xn = (camera[:, :, 0] * X_trans.view(shape[0], -1)).view(shape)
-    Xn = (camera.scale * X_trans)
+    Xn = camera.scale * X_trans
     Xn[..., 1:] = -Xn[..., 1:]
     return Xn
 
 
 def batch_persp_proj(vertices, cam, t, eps=1e-9):
-    '''
+    """
     Calculate projective transformation of vertices given a camera and it's translation
     Input parameters:
     cam:
@@ -115,7 +126,7 @@ def batch_persp_proj(vertices, cam, t, eps=1e-9):
     t: batch_size * 1 * 3 extrinsic calibration parameters
     Returns: For each point [X,Y,Z] in world coordinates [x,y,z] where u,v are the coordinates of the projection in
     NDC and z is the depth
-    '''
+    """
     t = t.unsqueeze(1)
     vertices = vertices + t
     # camera looks at -z direction
@@ -124,11 +135,13 @@ def batch_persp_proj(vertices, cam, t, eps=1e-9):
     y_ = y / (z + eps)
 
     vertices = torch.stack([x_, y_], dim=-1)
-    x_n, y_n = vertices[:, :, 0] * cam.focal_length[0] + \
-        cam.principal_point[0], vertices[:, :, 1] * \
-        cam.focal_length[1] + cam.principal_point[1]
+    x_n, y_n = (
+        vertices[:, :, 0] * cam.focal_length[0] + cam.principal_point[0],
+        vertices[:, :, 1] * cam.focal_length[1] + cam.principal_point[1],
+    )
     vertices = torch.stack([x_n, -y_n, z], dim=-1)
     return vertices
+
 
 # def batch_persp_proj(vertices, cam, f, t, orig_size=256, eps=1e-9):
 #     '''
@@ -181,7 +194,7 @@ def batch_persp_proj(vertices, cam, t, eps=1e-9):
 #     return vertices
 
 
-def tensor_vis_landmarks(images, landmarks, gt_landmarks=None, color='g', isScale=True):
+def tensor_vis_landmarks(images, landmarks, gt_landmarks=None, color="g", isScale=True):
     # visualize landmarks
     vis_landmarks = []
     images = images.cpu().numpy()
@@ -191,49 +204,59 @@ def tensor_vis_landmarks(images, landmarks, gt_landmarks=None, color='g', isScal
     for i in range(images.shape[0]):
         image = images[i]
         image = image.transpose(1, 2, 0)[:, :, [2, 1, 0]].copy()
-        image = (image * 255)
+        image = image * 255
         predicted_landmark = np.ones_like(predicted_landmarks[i])
         if isScale:
-            predicted_landmark[..., 0] = predicted_landmarks[i, :, 0] * \
-                image.shape[1] / 2 + image.shape[1] / 2
-            predicted_landmark[..., 1] = predicted_landmarks[i, :, 1] * \
-                image.shape[0] / 2 + image.shape[0] / 2
+            predicted_landmark[..., 0] = (
+                predicted_landmarks[i, :, 0] * image.shape[1] / 2 + image.shape[1] / 2
+            )
+            predicted_landmark[..., 1] = (
+                predicted_landmarks[i, :, 1] * image.shape[0] / 2 + image.shape[0] / 2
+            )
         else:
             predicted_landmark = predicted_landmarks[i]
 
         if predicted_landmark.shape[0] == 68:
             image_landmarks = plot_kpts(image, predicted_landmark, color)
             if gt_landmarks is not None:
-                image_landmarks = plot_verts(image_landmarks,
-                                             gt_landmarks_np[i] * image.shape[0] / 2 + image.shape[0] / 2, 'r')
+                image_landmarks = plot_verts(
+                    image_landmarks,
+                    gt_landmarks_np[i] * image.shape[0] / 2 + image.shape[0] / 2,
+                    "r",
+                )
         else:
             image_landmarks = plot_verts(image, predicted_landmark, color)
             if gt_landmarks is not None:
-                image_landmarks = plot_verts(image_landmarks,
-                                             gt_landmarks_np[i] * image.shape[0] / 2 + image.shape[0] / 2, 'r')
+                image_landmarks = plot_verts(
+                    image_landmarks,
+                    gt_landmarks_np[i] * image.shape[0] / 2 + image.shape[0] / 2,
+                    "r",
+                )
 
         vis_landmarks.append(image_landmarks)
 
     vis_landmarks = np.stack(vis_landmarks)
-    vis_landmarks = torch.from_numpy(
-        vis_landmarks[:, :, :, [2, 1, 0]].transpose(0, 3, 1, 2)) / 255.  # , dtype=torch.float32)
+    vis_landmarks = (
+        torch.from_numpy(vis_landmarks[:, :, :, [2, 1, 0]].transpose(0, 3, 1, 2))
+        / 255.0
+    )  # , dtype=torch.float32)
     return vis_landmarks
 
 
 end_list = np.array([17, 22, 27, 42, 48, 31, 36, 68], dtype=np.int32) - 1
 
 
-def plot_kpts(image, kpts, color='r'):
-    ''' Draw 68 key points
+def plot_kpts(image, kpts, color="r"):
+    """Draw 68 key points
     Args:
         image: the input image
         kpt: (68, 3).
-    '''
-    if color == 'r':
+    """
+    if color == "r":
         c = (255, 0, 0)
-    elif color == 'g':
+    elif color == "g":
         c = (0, 255, 0)
-    elif color == 'b':
+    elif color == "b":
         c = (255, 0, 0)
     image = image.copy()
     kpts = kpts.copy()
@@ -249,7 +272,6 @@ def plot_kpts(image, kpts, color='r'):
         if i in end_list:
             continue
         ed = kpts[i + 1, :2]
-        image = cv2.line(image, (st[0], st[1]),
-                         (ed[0], ed[1]), (255, 255, 255), 1)
+        image = cv2.line(image, (st[0], st[1]), (ed[0], ed[1]), (255, 255, 255), 1)
 
     return image

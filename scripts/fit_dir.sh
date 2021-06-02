@@ -1,13 +1,19 @@
 ###
  # @Author: yanxinhao
  # @Email: 1914607611xh@i.shu.edu.cn
- # @LastEditTime: 2021-05-10 14:35:50
+ # @LastEditTime: 2021-06-02 07:23:16
  # @LastEditors: yanxinhao
  # @Description: 
 ### 
-conda init
-conda activate pytorch3d
+cd ..
+source activate pytorch3d
+# val
+python experiments/flame_fit.py -i ./Data/dave_dvp/val \
+    -o ./Results/dave_dvp/val/
 # train
-python experiments/flame_fit.py -i ./Data/dave_dvp/train -o ./Results/dave_dvp/train/
+python experiments/flame_fit.py -i ./Data/dave_dvp/train \
+    -o ./Results/dave_dvp/train/
 # test
-python experiments/flame_fit.py -i ./Data/dave_dvp/test -o ./Results/dave_dvp/test/
+python experiments/flame_fit.py -i ./Data/dave_dvp/test \
+    -o ./Results/dave_dvp/test/
+cd scripts

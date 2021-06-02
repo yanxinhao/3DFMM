@@ -4,5 +4,6 @@ Data/
 *.jpg
 # Results/
 .vscode/
+tmp/
 # dave_dvp/
 __pycache__/

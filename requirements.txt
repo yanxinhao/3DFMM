@@ -1,0 +1,8 @@
+opencv-python==4.5.1.48
+numpy
+torch
+scipy
+tqdm
+scikit-image
+chumpy
+numba

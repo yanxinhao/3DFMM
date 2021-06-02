@@ -1,19 +1,19 @@
 # coding=utf-8
-'''
+"""
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-05-10 14:32:09
+LastEditTime: 2021-06-02 02:48:04
 LastEditors: yanxinhao
-Description: A basic class of 3DMM
-'''
+Description: 
+Date: 2021-06-02 02:48:00
+FilePath: /3DFMM/core/morphable_model/morphable_model.py
+"""
 import os
 import math
 import cv2
 import json
-# from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset, DataLoader
-# import torch.nn as nn
 import numpy as np
 import torch
 from .BFM import BFM
@@ -28,7 +28,7 @@ class MorphableModel(object):
         object ([type]): [description]
     """
 
-    def __init__(self, config=None, model_type='BFM', device="cuda"):
+    def __init__(self, config=None, model_type="BFM", device="cuda"):
         """constructor of MorphableModel
 
         Args:
@@ -39,36 +39,55 @@ class MorphableModel(object):
         self.config = config
         self.device = device
         self.image_size = config.image_size
-        if model_type == 'BFM':
+        if model_type == "BFM":
             self.model = BFM(config.model_path)
-        elif model_type == 'FLAME':
-            self.model = FLAME(
-                config, image_size=self.image_size).to(self.device)
+        elif model_type == "FLAME":
+            self.model = FLAME(config, image_size=self.image_size).to(self.device)
 
         # initilize landmark detector
         self.initilization()
 
     def initilization(self):
         import sys
+
         sys.path.append("./core/detector/")
         import face_alignment
-        face_detector = 'sfd'
-        face_detector_kwargs = {
-            "filter_threshold": 0.8
-        }
-        # Run the 3D face alignment on a test image, without CUDA.
-        self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, device=self.device, flip_input=True,
-                                               face_detector=face_detector, face_detector_kwargs=face_detector_kwargs)
 
-    def generate_vertices(self, params):
-        vertices = self.model(params)
+        face_detector = "sfd"
+        face_detector_kwargs = {"filter_threshold": 0.8}
+        # Run the 3D face alignment on a test image, without CUDA.
+        self.fa = face_alignment.FaceAlignment(
+            face_alignment.LandmarksType._2D,
+            device=self.device,
+            flip_input=True,
+            face_detector=face_detector,
+            face_detector_kwargs=face_detector_kwargs,
+        )
+
+    def generate_vertices(self, **params):
+        vertices = self.model(**params)
         return vertices
 
-    def write_obj(self, params, file_path="./Results/test.obj"):
-        self.model.save_obj(params, file_path)
+    def write_obj(self, file_path="./Results/test.obj", **params):
+        self.model.save_obj(file_path, **params)
 
-    def render_shape(self, params):
-        images = self.model.render_shape(params)
+    def render_shape(self, is_perspective=True, **params):
+        self.model.setup_camera(
+            camera_path=params["camera_path"], is_perspective=is_perspective
+        )
+        images = self.model.render_shape(**params)
+        return images
+
+    def render_init_shape(self, is_perspective=True):
+        self.model.setup_camera(is_perspective=is_perspective)
+        self.model.initialize_params()
+        params = self.model.get_params()
+        images = self.model.render_shape(
+            shape=params["shape_params"],
+            expression=params["expression_params"],
+            pose=params["pose_params"],
+            cam_t=params["cam_t"],
+        )
         return images
 
     def get_2d_landmarks(self, image):
@@ -93,8 +112,10 @@ class MorphableModel(object):
         # fitting by landmarks
         landmarks[:, :, 0] = landmarks[:, :, 0] / float(image.shape[1]) * 2 - 1
         landmarks[:, :, 1] = landmarks[:, :, 1] / float(image.shape[0]) * 2 - 1
-        params = self.model.optimize_by_landmark(landmarks=landmarks, images=torch.from_numpy(
-            np.array([image.transpose(2, 0, 1) / 255.])))
+        params = self.model.optimize_by_landmark(
+            landmarks=landmarks,
+            images=torch.from_numpy(np.array([image.transpose(2, 0, 1) / 255.0])),
+        )
         return params
 
     def _get_dataloader(self, images=None, landmarks=None, batch_size=1):
@@ -105,10 +126,8 @@ class MorphableModel(object):
             landmarks = self.fa.get_landmarks_from_batch(image_batch=images)
             landmarks = torch.from_numpy(np.array(landmarks)).to(self.device)
             # preprocess
-            landmarks[:, :, 0] = landmarks[:, :, 0] / \
-                float(self.image_size[0]) * 2 - 1
-            landmarks[:, :, 1] = landmarks[:, :, 1] / \
-                float(self.image_size[1]) * 2 - 1
+            landmarks[:, :, 0] = landmarks[:, :, 0] / float(self.image_size[0]) * 2 - 1
+            landmarks[:, :, 1] = landmarks[:, :, 1] / float(self.image_size[1]) * 2 - 1
             images = images / 255.0
         else:
             data_size = landmarks.shape[0]
@@ -150,8 +169,7 @@ class MorphableModel(object):
     def camera_calib(self, images=None, landmarks=None, is_perspective=True):
         check_mkdir(self.config.savefolder)
         assert images is not None or landmarks is not None
-        dataloader, data_size = self._get_dataloader(
-            images=images, landmarks=landmarks)
+        dataloader, data_size = self._get_dataloader(images=images, landmarks=landmarks)
         #  init camera and parameters,camera is 'self.model.cam'
         self.model.setup_camera(is_perspective=is_perspective)
         self.model.initialize_params(batch_size=data_size)
@@ -160,15 +178,21 @@ class MorphableModel(object):
     def fit_identity(self, camera_path, images=None, landmarks=None):
         check_mkdir(self.config.savefolder)
         assert images is not None or landmarks is not None
-        dataloader, data_size = self._get_dataloader(
-            images=images, landmarks=landmarks)
+        dataloader, data_size = self._get_dataloader(images=images, landmarks=landmarks)
         #  init camera and parameters,camera is 'self.model.cam'
         self.model.setup_camera(camera_path=camera_path)
         self.model.initialize_params(batch_size=data_size)
-        self.model.identity_fitting(
-            dataloader, savefolder=self.config.savefolder)
+        self.model.identity_fitting(dataloader, savefolder=self.config.savefolder)
 
-    def fit_dir(self, shape_path, camera_path, dir_path, start_index=0, chunk=512, sort_fun=lambda name: int(name[2:6])):
+    def fit_dir(
+        self,
+        shape_path,
+        camera_path,
+        dir_path,
+        start_index=0,
+        chunk=512,
+        sort_fun=lambda name: int(name[2:6]),
+    ):
         check_mkdir(self.config.savefolder)
         # step 1: get images and image_names
         image_names = os.listdir(dir_path)
@@ -191,16 +215,15 @@ class MorphableModel(object):
                 # get landmarks
                 # only get one person's landmarks
                 landmarks = self.detector.get_landmarks_from_batch(image.unsqueeze(0))[
-                    0]
-                landmarks = torch.from_numpy(
-                    np.array(landmarks)).to(self.device)
+                    0
+                ]
+                landmarks = torch.from_numpy(np.array(landmarks)).to(self.device)
                 # preprocess
-                landmarks[:, 0] = landmarks[:, 0] / \
-                    float(w) * 2 - 1
-                landmarks[:, 1] = landmarks[:, 1] / \
-                    float(h) * 2 - 1
+                landmarks[:, 0] = landmarks[:, 0] / float(w) * 2 - 1
+                landmarks[:, 1] = landmarks[:, 1] / float(h) * 2 - 1
                 image = image / 255.0
                 return image, landmarks, index, self.image_names[index]
+
         if start_index != 0:
             with open(os.path.join(self.config.savefolder, "data.json"), "r") as file:
                 data = json.load(file)
@@ -210,17 +233,19 @@ class MorphableModel(object):
         # load all images,minibatches to avoid OOM.
         for i in range(start_index, len(image_names), chunk):
             images = []
-            names = image_names[i:i + chunk]
+            names = image_names[i : i + chunk]
             print(
-                f'------------fit_dir :total chuck nums:{chuck_nums}, processing No. {i+1}--------------')
+                f"------------fit_dir :total chuck nums:{chuck_nums}, processing No. {i/chunk+1}--------------"
+            )
             for image_name in names:
                 image_path = os.path.join(dir_path, image_name)
                 image = cv2.imread(image_path)
                 image = cv2.resize(image, self.config.image_size)
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 images.append(image)
-            images = torch.from_numpy(
-                np.array(images).transpose(0, 3, 1, 2)).to(self.device)
+            images = torch.from_numpy(np.array(images).transpose(0, 3, 1, 2)).to(
+                self.device
+            )
             # step 2: load shape and cameras; init parameters of 3DMM
             bz = images.shape[0]
             self.model.initialize_params(batch_size=bz)
