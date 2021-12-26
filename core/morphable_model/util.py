@@ -14,7 +14,8 @@ import math
 from collections import OrderedDict
 import os
 from scipy.ndimage import morphology
-from skimage.io import imsave
+
+# from skimage.io import imsave
 import cv2
 
 
@@ -137,7 +138,7 @@ def batch_persp_proj(vertices, cam, t, eps=1e-9):
     vertices = torch.stack([x_, y_], dim=-1)
     x_n, y_n = (
         vertices[:, :, 0] * cam.focal_length[0] + cam.principal_point[0],
-        vertices[:, :, 1] * cam.focal_length[1] + cam.principal_point[1],
+        vertices[:, :, 1] * cam.focal_length[0] + cam.principal_point[1],
     )
     vertices = torch.stack([x_n, -y_n, z], dim=-1)
     return vertices

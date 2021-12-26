@@ -1,7 +1,7 @@
 <!--
  * @Author: yanxinhao
  * @Email: 1914607611xh@i.shu.edu.cn
- * @LastEditTime: 2021-06-02 11:30:54
+ * @LastEditTime: 2021-12-26 20:02:54
  * @LastEditors: yanxinhao
  * @Description: 
 -->
@@ -18,7 +18,7 @@ The fitting process of a sequence of images:
   - identity fitting : only using the first 50 images
   - expression and pose fitting : using of all images
 
-### Demos
+### Demo
 <table>
     <tr>
     <td><img src="./imgs/f_0000.png"  width=70%></td>
@@ -41,4 +41,5 @@ Some scripts are in './scripts/'.
 https://github.com/HavenFeng/photometric_optimization
 ## Todo
 - [ ] add eyes detection to align gaze 
+- [ ] photometric fitting
 - [ ] implement the BFM fitting part

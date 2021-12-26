@@ -186,10 +186,7 @@ class FLAME(nn.Module):
         )
         if self.is_perspective:
             self.cam_t = nn.Parameter(
-                torch.tensor([0, 0, -10.0])
-                .repeat(batch_size, 1)
-                .float()
-                .to(self.device)
+                torch.tensor([0, 0, -1.0]).repeat(batch_size, 1).float().to(self.device)
             )
         else:
             self.cam_t = nn.Parameter(
@@ -217,7 +214,7 @@ class FLAME(nn.Module):
                 camera_path=camera_path,
                 is_perspective=is_perspective,
                 principal_point=nn.Parameter(torch.zeros(2).float().to(self.device)),
-                focal_length=nn.Parameter(5 * torch.ones(2).float().to(self.device)),
+                focal_length=nn.Parameter(5 * torch.ones(1).float().to(self.device)),
             )
             self.project_fun = batch_persp_proj
         else:
@@ -344,7 +341,7 @@ class FLAME(nn.Module):
 
     def forward(
         self,
-        scale=10,
+        scale=1,
         shape_params=None,
         expression_params=None,
         pose_params=None,
@@ -767,8 +764,8 @@ class FLAME(nn.Module):
         opt_params = [tex_params, expression_params, light_params, pose_params, cam_t]
         opt_rigid_params = [pose_params, cam_t]
         if update_camera:
-            opt_params += camera.get_params()
-            opt_rigid_params += camera.get_params()
+            opt_params += [camera.get_params()[0]]
+            opt_rigid_params += [camera.get_params()[0]]
         if update_shape:
             opt_params += [shape_params]
         # init optimizer

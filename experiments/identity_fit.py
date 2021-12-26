@@ -2,11 +2,11 @@
 """
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-06-02 02:49:02
+LastEditTime: 2021-07-15 17:14:13
 LastEditors: yanxinhao
-Description: 
-Date: 2021-06-02 02:49:01
 FilePath: /3DFMM/experiments/identity_fit.py
+Date: 2021-07-15 17:14:12
+Description: 
 """
 import os
 import cv2
@@ -25,7 +25,7 @@ def main():
         "flame_lmk_embedding_path": "./Data/morphable_model/FLAME/landmark_embedding.npy",
         # acquire it from FLAME project page
         "tex_space_path": "./Data/morphable_model/FLAME/FLAME_texture.npz",
-        "camera_path": "./Results/dave_dvp/camera.json",
+        "camera_path": "./Results/dave_dvp_principle0/camera.json",
         "shape_params": 100,
         "expression_params": 50,
         "pose_params": 6,
@@ -37,7 +37,7 @@ def main():
         "image_size": (512, 512),
         "e_lr": 0.005,
         "e_wd": 0.0001,
-        "savefolder": "./Results/dave_dvp",
+        "savefolder": "./Results/dave_dvp_principle0",
         "image_dir": "./Data/dave_dvp/train/",
         # weights of losses and reg terms
         "w_pho": 8,

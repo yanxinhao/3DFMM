@@ -2,10 +2,10 @@
 """
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-06-02 10:49:00
+LastEditTime: 2021-09-18 14:13:30
 LastEditors: yanxinhao
 FilePath: /3DFMM/experiments/flame_fit.py
-Date: 2021-06-02 02:53:28
+Date: 2021-09-18 14:13:30
 Description: 
 """
 import os
@@ -26,8 +26,8 @@ def main(args):
         "flame_lmk_embedding_path": "./Data/morphable_model/FLAME/landmark_embedding.npy",
         # acquire it from FLAME project page
         "tex_space_path": "./Data/morphable_model/FLAME/FLAME_texture.npz",
-        "camera_path": "./Results/dave_dvp/camera.json",
-        "shape_path": "./Results/dave_dvp/identity.json",
+        "camera_path": "./Results/dave_dvp_principle0/camera.json",
+        "shape_path": "./Results/dave_dvp_principle0/identity.json",
         "shape_params": 100,
         "expression_params": 50,
         "pose_params": 6,
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-i", "--input_folder", type=str, default="./Data/dave_dvp/val")
     parser.add_argument(
-        "-o", "--out_folder", type=str, default="./Results/dave_dvp/val/"
+        "-o", "--out_folder", type=str, default="./Results/dave_dvp_principle0/val/"
     )
     args = parser.parse_args()
     main(args)

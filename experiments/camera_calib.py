@@ -2,10 +2,11 @@
 """
 Author: yanxinhao
 Email: 1914607611xh@i.shu.edu.cn
-LastEditTime: 2021-06-01 15:44:41
+Date: 2021-09-24 13:24:46
+LastEditTime: 2021-09-24 13:24:46
 LastEditors: yanxinhao
-Description: 
 FilePath: /3DFMM/experiments/camera_calib.py
+Description: 
 """
 import os
 import cv2
@@ -33,11 +34,13 @@ def main():
         "cropped_size": 512,
         "batch_size": 1,
         # 'image_size': (456, 352),
-        "image_size": (512, 512),
+        "image_size": (562, 762),
         "e_lr": 0.005,
         "e_wd": 0.0001,
-        "savefolder": "./Results/dave_dvp",
-        "image_dir": "./Data/dave_dvp/train/",
+        # "savefolder": "./Results/dave_dvp_principle0",
+        # "image_dir": "./Data/dave_dvp/train/",
+        "savefolder": "./tmp/",
+        "image_dir": "/p300/WorkSpace/NeuralRendering/NDface/datasets/face_images/KDEF/AM28/",
         # weights of losses and reg terms
         "w_pho": 8,
         "w_lmks": 1,
@@ -54,7 +57,7 @@ def main():
     image_dir = config_flame.image_dir
     images = []
     image_names = os.listdir(image_dir)
-    image_names.sort(key=lambda name: int(name[2:6]))
+    # image_names.sort(key=lambda name: int(name[2:6]))
     for i, image_name in enumerate(image_names):
         if i == 50:
             break

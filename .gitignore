@@ -2,7 +2,7 @@ Data/
 *.obj
 # *.png
 *.jpg
-# Results/
+Results/
 .vscode/
 tmp/
 # dave_dvp/
